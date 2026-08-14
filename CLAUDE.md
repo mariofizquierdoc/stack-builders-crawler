@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-A Next.js web crawler that scrapes the top 30 Hacker News stories and presents them in a React UI with on-demand fetch and client-side sort controls.
+A Next.js web crawler that scrapes the top 30 Hacker News stories and presents them in a React UI with on-demand fetch and client-side sort controls. The app is gated behind a login (email + password); registered users' credentials are stored in MySQL.
 
 ## Tech Stack
 
@@ -12,39 +12,59 @@ A Next.js web crawler that scrapes the top 30 Hacker News stories and presents t
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS
 - **Scraping:** cheerio (server-side HTML parsing)
+- **Database:** MySQL via Prisma ORM
+- **Auth:** Auth.js (NextAuth v5) — Credentials provider, JWT sessions, no OAuth/Adapter
 - **Package manager:** npm
 
 ## Setup and Commands
 
 ```bash
-npm install        # install dependencies
-npm run dev        # development server at http://localhost:3000
-npm run build      # production build
-npm run start      # start production server
-npm run lint       # run ESLint
-npm test           # run the Vitest suite once
-npm run test:watch # run Vitest in watch mode
+npm install         # install dependencies (also runs `prisma generate` via postinstall)
+docker compose up -d mysql   # start local MySQL (see docker-compose.yml)
+npx prisma migrate dev       # apply schema to local MySQL
+npm run dev         # development server at http://localhost:3000
+npm run build       # production build
+npm run start       # start production server
+npm run lint        # run ESLint
+npm test            # run the Vitest suite once
+npm run test:watch  # run Vitest in watch mode
 ```
+
+Copy `.env.example` to `.env` and fill in `DATABASE_URL`/`AUTH_SECRET` before running the app (see `.env.example` for how the values map to `docker-compose.yml`'s MySQL credentials).
 
 ## Architecture
 
 ```
+prisma/schema.prisma             # User model (id, email, hashedPassword, name, timestamps)
 src/
-├── types/index.ts              # HNEntry interface
+├── types/index.ts               # HNEntry interface
+├── auth.config.ts                # Edge-safe Auth.js config (pages, authorized() route allowlist) — used by middleware
+├── auth.ts                       # Full Auth.js config (Credentials provider) — Node-only, exports handlers/auth/signIn/signOut
+├── middleware.ts                  # Gates every route except /login, /register, /api/auth/*, /api/register
 ├── lib/
-│   ├── sort.ts                 # sortEntries — pure sort logic
-│   ├── filter.ts                # filterByTitleLength — pure filter logic
-│   └── parseHNEntries.ts         # cheerio HTML parsing, extracted from the API route
+│   ├── sort.ts                   # sortEntries — pure sort logic
+│   ├── filter.ts                  # filterByTitleLength — pure filter logic
+│   ├── parseHNEntries.ts           # cheerio HTML parsing, extracted from the API route
+│   ├── prisma.ts                  # Prisma client singleton (hot-reload-safe)
+│   └── auth/verifyCredentials.ts   # email+password lookup against MySQL, bcrypt compare
 ├── app/
-│   ├── layout.tsx              # Root layout with Tailwind globals
-│   ├── page.tsx                # Main page (crawl button, filter, sort, table)
-│   └── api/crawl/route.ts      # GET /api/crawl — fetches HN, delegates parsing to lib/parseHNEntries
+│   ├── layout.tsx                # Root layout; renders UserBar above {children}
+│   ├── page.tsx                  # Main page (crawl button, filter, sort, table) — behind auth
+│   ├── login/page.tsx             # Login form (next-auth/react signIn)
+│   ├── register/page.tsx          # Self-service registration form
+│   └── api/
+│       ├── crawl/route.ts          # GET /api/crawl — fetches HN, delegates parsing to lib/parseHNEntries
+│       ├── register/route.ts       # POST /api/register — zod validation, bcrypt hash, Prisma create
+│       └── auth/[...nextauth]/route.ts  # Auth.js's own GET/POST handlers
 └── components/
-    └── NewsTable.tsx           # Sortable results table
+    ├── NewsTable.tsx             # Sortable results table
+    └── UserBar.tsx                # Server component: shows logged-in email + logout
 ```
 
 The API route (`/api/crawl`) fetches `https://news.ycombinator.com/` and passes the HTML to `parseHNEntries` (`src/lib/parseHNEntries.ts`), which parses `tr.athing` rows with cheerio and returns an array of 30 `HNEntry` objects (rank, title, url, score, comments). Sorting and title-length filtering are implemented as pure functions in `src/lib/sort.ts` and `src/lib/filter.ts` so they can be unit tested independently of the React UI.
 
+The whole app (including `/api/crawl`) is gated behind login via `src/middleware.ts`, which delegates the allow/deny decision to `authConfig.callbacks.authorized` in `src/auth.config.ts`. Auth.js config is deliberately split in two: `auth.config.ts` has no providers and is safe to bundle into the Edge middleware; `auth.ts` adds the Credentials provider (which needs Prisma + bcryptjs, both Node-only) and is only ever imported from server-side code (route handlers, server components), never from `middleware.ts`. Sessions are JWT-based — no session table, no Auth.js Adapter. Password reset/email verification are out of scope for now.
+
 ## Testing
 
-Tests use Vitest + React Testing Library. `src/lib/*.test.ts` covers the pure sort/filter/parser logic (parser tests use the fixture at `src/lib/__fixtures__/hn-sample.html`); `src/app/api/crawl/route.test.ts` mocks `fetch` to test the API route's success/error paths; `src/app/page.test.tsx` renders the real page + table and drives crawl/sort/filter interactions with `@testing-library/user-event`. CI (`.github/workflows/ci.yml`) runs lint, test, and build on every push/PR to `main`.
+Tests use Vitest + React Testing Library. `src/lib/*.test.ts` covers the pure sort/filter/parser/auth logic (parser tests use the fixture at `src/lib/__fixtures__/hn-sample.html`; `verifyCredentials.test.ts` mocks `@/lib/prisma` and `bcryptjs`); `src/app/api/crawl/route.test.ts` mocks `fetch`, `src/app/api/register/route.test.ts` mocks `@/lib/prisma`, to test each route's success/error paths; `src/app/page.test.tsx` renders the real page + table and drives crawl/sort/filter interactions with `@testing-library/user-event`. Full Auth.js `signIn`/middleware/cookie flows are intentionally not covered by automated tests — verify those manually (register → login → confirm `/` and `/api/crawl` are gated → logout). CI (`.github/workflows/ci.yml`) runs `prisma generate`, lint, test, and build on every push/PR to `main`, using dummy `DATABASE_URL`/`AUTH_SECRET` values (no real DB needed since Prisma is mocked in tests and `prisma generate` doesn't require connectivity).

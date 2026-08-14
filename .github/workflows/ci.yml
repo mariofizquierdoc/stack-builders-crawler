@@ -9,6 +9,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "mysql://ci:ci@localhost:3306/ci_placeholder"
+      AUTH_SECRET: "ci-only-dummy-secret-not-for-production"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,6 +19,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npx prisma generate
       - run: npm run lint
       - run: npm test
       - run: npm run build
