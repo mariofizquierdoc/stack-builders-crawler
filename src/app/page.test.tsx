@@ -14,8 +14,18 @@ const mockEntries: HNEntry[] = [
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
+function defaultFetchImpl(url: string) {
+  if (url === "/api/crawl") {
+    return Promise.resolve({ ok: true, json: async () => mockEntries });
+  }
+  if (url === "/api/usage") {
+    return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+  }
+  return Promise.reject(new Error(`Unexpected fetch to ${url}`));
+}
+
 beforeEach(() => {
-  fetchMock = vi.fn();
+  fetchMock = vi.fn(defaultFetchImpl);
   vi.stubGlobal("fetch", fetchMock);
 });
 
@@ -27,8 +37,13 @@ function titleOrder() {
   return screen.getAllByRole("link").map((link) => link.textContent);
 }
 
+function usageCalls() {
+  return fetchMock.mock.calls
+    .filter((args) => args[0] === "/api/usage")
+    .map((args) => JSON.parse((args[1] as RequestInit).body as string));
+}
+
 async function crawl(user: ReturnType<typeof userEvent.setup>) {
-  fetchMock.mockResolvedValueOnce({ ok: true, json: async () => mockEntries });
   await user.click(screen.getByRole("button", { name: /Crawl Hacker News/ }));
   await screen.findByRole("table");
 }
@@ -48,6 +63,7 @@ describe("Home page", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("/api/crawl");
     expect(titleOrder()).toEqual(mockEntries.map((e) => e.title));
+    expect(usageCalls()).toEqual([{ filter: "all", sortKey: null, sortDir: "desc" }]);
   });
 
   it("shows a loading indicator while the crawl is in flight", async () => {
@@ -84,6 +100,10 @@ describe("Home page", () => {
       mockEntries[3].title,
     ]);
     expect(scoreButton.textContent).toContain("↓");
+    expect(usageCalls()).toEqual([
+      { filter: "all", sortKey: null, sortDir: "desc" },
+      { filter: "all", sortKey: "score", sortDir: "desc" },
+    ]);
 
     await user.click(scoreButton);
     expect(titleOrder()).toEqual([
@@ -93,6 +113,11 @@ describe("Home page", () => {
       mockEntries[1].title,
     ]);
     expect(scoreButton.textContent).toContain("↑");
+    expect(usageCalls()).toEqual([
+      { filter: "all", sortKey: null, sortDir: "desc" },
+      { filter: "all", sortKey: "score", sortDir: "desc" },
+      { filter: "all", sortKey: "score", sortDir: "asc" },
+    ]);
   });
 
   it("switches sort column when Comments is clicked", async () => {
@@ -114,6 +139,11 @@ describe("Home page", () => {
     ]);
     expect(commentsButton.textContent).toContain("↓");
     expect(scoreButton.textContent).toContain("↕");
+    expect(usageCalls()).toEqual([
+      { filter: "all", sortKey: null, sortDir: "desc" },
+      { filter: "all", sortKey: "score", sortDir: "desc" },
+      { filter: "all", sortKey: "comments", sortDir: "desc" },
+    ]);
   });
 
   it("filters rows by title length", async () => {
@@ -129,21 +159,31 @@ describe("Home page", () => {
 
     await user.click(screen.getByRole("radio", { name: /^All$/ }));
     expect(titleOrder()).toEqual(mockEntries.map((e) => e.title));
+
+    expect(usageCalls()).toEqual([
+      { filter: "all", sortKey: null, sortDir: "desc" },
+      { filter: "long", sortKey: null, sortDir: "desc" },
+      { filter: "short", sortKey: null, sortDir: "desc" },
+      { filter: "all", sortKey: null, sortDir: "desc" },
+    ]);
   });
 
   it("shows an error message and no table when the crawl fails", async () => {
     const user = userEvent.setup();
     render(<Home />);
 
-    fetchMock.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      json: async () => ({ error: "boom" }),
-    });
+    fetchMock.mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: "boom" }),
+      })
+    );
 
     await user.click(screen.getByRole("button", { name: /Crawl Hacker News/ }));
 
     expect(await screen.findByText(/Error: boom/)).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(usageCalls()).toEqual([]);
   });
 });

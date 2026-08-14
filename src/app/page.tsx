@@ -6,6 +6,14 @@ import { HNEntry } from "@/types";
 import { sortEntries, type SortKey, type SortDir } from "@/lib/sort";
 import { filterByTitleLength, type TitleLengthFilter } from "@/lib/filter";
 
+function logUsage(filter: TitleLengthFilter, sortKey: SortKey | null, sortDir: SortDir) {
+  fetch("/api/usage", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filter, sortKey, sortDir }),
+  }).catch(() => {});
+}
+
 export default function Home() {
   const [entries, setEntries] = useState<HNEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -27,6 +35,7 @@ export default function Home() {
       setEntries(data);
       setSortKey(null);
       setFilter('all');
+      logUsage('all', null, sortDir);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to crawl");
     } finally {
@@ -35,12 +44,10 @@ export default function Home() {
   }
 
   function handleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
-    } else {
-      setSortKey(key);
-      setSortDir("desc");
-    }
+    const nextDir: SortDir = sortKey === key ? (sortDir === "desc" ? "asc" : "desc") : "desc";
+    setSortKey(key);
+    setSortDir(nextDir);
+    logUsage(filter, key, nextDir);
   }
 
   const sorted = sortEntries(entries, sortKey, sortDir);
@@ -73,7 +80,10 @@ export default function Home() {
                 name="filter"
                 value={opt}
                 checked={filter === opt}
-                onChange={() => setFilter(opt)}
+                onChange={() => {
+                  setFilter(opt);
+                  logUsage(opt, sortKey, sortDir);
+                }}
                 className="accent-orange-500"
               />
               {opt === 'all' ? 'All' : opt === 'long' ? '> 5 words' : '≤ 5 words'}

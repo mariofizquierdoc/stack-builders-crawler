@@ -8,12 +8,42 @@ datasource db {
 }
 
 model User {
-  id             String   @id @default(cuid())
-  email          String   @unique
+  id             String       @id @default(cuid())
+  email          String       @unique
   hashedPassword String
   name           String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  usageEvents    UsageEvent[]
 
   @@map("users")
+}
+
+enum UsageFilter {
+  all
+  long
+  short
+}
+
+enum UsageSortKey {
+  score
+  comments
+}
+
+enum UsageSortDir {
+  asc
+  desc
+}
+
+model UsageEvent {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  filter    UsageFilter
+  sortKey   UsageSortKey?
+  sortDir   UsageSortDir
+  createdAt DateTime      @default(now())
+
+  @@index([userId])
+  @@map("usage_events")
 }
