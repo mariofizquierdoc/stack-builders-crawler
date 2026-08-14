@@ -1,10 +1,44 @@
 import { HNEntry } from "@/types";
 
+type SortKey = "score" | "comments";
+type SortDir = "asc" | "desc";
+
 interface Props {
   entries: HNEntry[];
+  sortKey: SortKey | null;
+  sortDir: SortDir;
+  onSort: (key: SortKey) => void;
 }
 
-export default function NewsTable({ entries }: Props) {
+function SortableHeader({
+  label,
+  sortKey,
+  active,
+  dir,
+  onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  active: boolean;
+  dir: SortDir;
+  onSort: (key: SortKey) => void;
+}) {
+  return (
+    <th className="px-4 py-3 w-24 text-right">
+      <button
+        onClick={() => onSort(sortKey)}
+        className="inline-flex items-center justify-end gap-1 w-full hover:text-orange-200 transition-colors cursor-pointer"
+      >
+        {label}
+        <span className="text-sm w-3 text-center">
+          {active ? (dir === "desc" ? "↓" : "↑") : "↕"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
+export default function NewsTable({ entries, sortKey, sortDir, onSort }: Props) {
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
       <table className="w-full text-sm text-left">
@@ -12,8 +46,20 @@ export default function NewsTable({ entries }: Props) {
           <tr>
             <th className="px-4 py-3 w-12">#</th>
             <th className="px-4 py-3">Title</th>
-            <th className="px-4 py-3 w-24 text-right">Score</th>
-            <th className="px-4 py-3 w-28 text-right">Comments</th>
+            <SortableHeader
+              label="Score"
+              sortKey="score"
+              active={sortKey === "score"}
+              dir={sortDir}
+              onSort={onSort}
+            />
+            <SortableHeader
+              label="Comments"
+              sortKey="comments"
+              active={sortKey === "comments"}
+              dir={sortDir}
+              onSort={onSort}
+            />
           </tr>
         </thead>
         <tbody>

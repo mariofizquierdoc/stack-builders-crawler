@@ -21,6 +21,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [filter, setFilter] = useState<'all' | 'long' | 'short'>('all');
 
   async function handleCrawl() {
     setLoading(true);
@@ -34,6 +35,7 @@ export default function Home() {
       const data: HNEntry[] = await res.json();
       setEntries(data);
       setSortKey(null);
+      setFilter('all');
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to crawl");
     } finally {
@@ -51,6 +53,12 @@ export default function Home() {
   }
 
   const sorted = sortEntries(entries, sortKey, sortDir);
+  const filtered = sorted.filter((e) => {
+    const words = e.title.trim().split(/\s+/).length;
+    if (filter === 'long') return words > 5;
+    if (filter === 'short') return words <= 5;
+    return true;
+  });
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-10">
@@ -59,7 +67,7 @@ export default function Home() {
         Fetch the top 30 stories from Hacker News on demand.
       </p>
 
-      <div className="flex flex-wrap items-center gap-3 mb-6">
+      <div className="mb-6">
         <button
           onClick={handleCrawl}
           disabled={loading}
@@ -67,24 +75,26 @@ export default function Home() {
         >
           {loading ? "Crawling…" : "Crawl Hacker News"}
         </button>
-
-        {entries.length > 0 && (
-          <>
-            <SortButton
-              label="Score"
-              active={sortKey === "score"}
-              dir={sortDir}
-              onClick={() => handleSort("score")}
-            />
-            <SortButton
-              label="Comments"
-              active={sortKey === "comments"}
-              dir={sortDir}
-              onClick={() => handleSort("comments")}
-            />
-          </>
-        )}
       </div>
+
+      {entries.length > 0 && (
+        <div className="flex items-center gap-4 mb-6">
+          <span className="text-sm text-gray-500 font-medium">Filter by title length:</span>
+          {(['all', 'long', 'short'] as const).map((opt) => (
+            <label key={opt} className="flex items-center gap-1.5 cursor-pointer text-sm text-gray-700">
+              <input
+                type="radio"
+                name="filter"
+                value={opt}
+                checked={filter === opt}
+                onChange={() => setFilter(opt)}
+                className="accent-orange-500"
+              />
+              {opt === 'all' ? 'All' : opt === 'long' ? '> 5 words' : '≤ 5 words'}
+            </label>
+          ))}
+        </div>
+      )}
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
@@ -118,7 +128,14 @@ export default function Home() {
         </div>
       )}
 
-      {!loading && sorted.length > 0 && <NewsTable entries={sorted} />}
+      {!loading && filtered.length > 0 && (
+        <NewsTable
+          entries={filtered}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSort={handleSort}
+        />
+      )}
 
       {!loading && entries.length === 0 && !error && (
         <p className="text-center text-gray-400 py-16">
@@ -126,32 +143,5 @@ export default function Home() {
         </p>
       )}
     </main>
-  );
-}
-
-function SortButton({
-  label,
-  active,
-  dir,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  dir: SortDir;
-  onClick: () => void;
-}) {
-  const arrow = active ? (dir === "desc" ? " ↓" : " ↑") : "";
-  return (
-    <button
-      onClick={onClick}
-      className={`px-4 py-2 rounded-lg border font-medium transition-colors ${
-        active
-          ? "bg-gray-800 text-white border-gray-800"
-          : "bg-white text-gray-700 border-gray-300 hover:border-gray-500"
-      }`}
-    >
-      Sort by {label}
-      {arrow}
-    </button>
   );
 }
