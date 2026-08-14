@@ -3,17 +3,8 @@
 import { useState } from "react";
 import NewsTable from "@/components/NewsTable";
 import { HNEntry } from "@/types";
-
-type SortKey = "score" | "comments";
-type SortDir = "asc" | "desc";
-
-function sortEntries(entries: HNEntry[], key: SortKey | null, dir: SortDir) {
-  if (!key) return entries;
-  return [...entries].sort((a, b) => {
-    const diff = a[key] - b[key];
-    return dir === "asc" ? diff : -diff;
-  });
-}
+import { sortEntries, type SortKey, type SortDir } from "@/lib/sort";
+import { filterByTitleLength, type TitleLengthFilter } from "@/lib/filter";
 
 export default function Home() {
   const [entries, setEntries] = useState<HNEntry[]>([]);
@@ -21,7 +12,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [filter, setFilter] = useState<'all' | 'long' | 'short'>('all');
+  const [filter, setFilter] = useState<TitleLengthFilter>('all');
 
   async function handleCrawl() {
     setLoading(true);
@@ -53,12 +44,7 @@ export default function Home() {
   }
 
   const sorted = sortEntries(entries, sortKey, sortDir);
-  const filtered = sorted.filter((e) => {
-    const words = e.title.trim().split(/\s+/).length;
-    if (filter === 'long') return words > 5;
-    if (filter === 'short') return words <= 5;
-    return true;
-  });
+  const filtered = filterByTitleLength(sorted, filter);
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-10">

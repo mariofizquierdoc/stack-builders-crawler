@@ -1,7 +1,5 @@
 import { HNEntry } from "@/types";
-
-type SortKey = "score" | "comments";
-type SortDir = "asc" | "desc";
+import type { SortKey, SortDir } from "@/lib/sort";
 
 interface Props {
   entries: HNEntry[];
