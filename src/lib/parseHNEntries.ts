@@ -20,7 +20,9 @@ export function parseHNEntries(html: string): HNEntry[] {
     const rawUrl = titleAnchor.attr("href") ?? "";
     const url = rawUrl.startsWith("item?id=")
       ? `${HN_BASE}/${rawUrl}`
-      : rawUrl;
+      : /^https?:\/\//i.test(rawUrl)
+        ? rawUrl
+        : "";
 
     const scoreText = subRow.find(".score").text();
     const score = parseInt(scoreText, 10) || 0;

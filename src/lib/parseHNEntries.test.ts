@@ -11,8 +11,15 @@ const sampleHtml = fs.readFileSync(
 describe("parseHNEntries", () => {
   it("skips rows with an empty title", () => {
     const entries = parseHNEntries(sampleHtml);
-    expect(entries).toHaveLength(3);
+    expect(entries).toHaveLength(4);
     expect(entries.some((e) => e.rank === 4)).toBe(false);
+  });
+
+  it("strips non-http(s) URL schemes instead of passing them through", () => {
+    const entries = parseHNEntries(sampleHtml);
+    const fifth = entries.find((e) => e.rank === 5)!;
+    expect(fifth.title).toBe("Malicious Link Story");
+    expect(fifth.url).toBe("");
   });
 
   it("parses a normal story with external URL, score, and comments", () => {

@@ -39,8 +39,9 @@ describe("verifyCredentials", () => {
     });
   });
 
-  it("returns null for an unknown email", async () => {
+  it("returns null for an unknown email, but still runs a bcrypt compare (timing-attack resistance)", async () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
 
     const result = await verifyCredentials({
       email: "nobody@example.com",
@@ -48,7 +49,10 @@ describe("verifyCredentials", () => {
     });
 
     expect(result).toBeNull();
-    expect(bcrypt.compare).not.toHaveBeenCalled();
+    // Runs against a fixed dummy hash (not user-derived) so the unknown-email
+    // path takes comparable time to the wrong-password path and doesn't leak
+    // which emails are registered via response timing.
+    expect(bcrypt.compare).toHaveBeenCalledWith("whatever", expect.any(String));
   });
 
   it("returns null for a wrong password", async () => {

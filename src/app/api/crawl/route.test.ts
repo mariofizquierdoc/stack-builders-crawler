@@ -27,7 +27,7 @@ describe("GET /api/crawl", () => {
     expect(res.status).toBe(200);
 
     const entries = await res.json();
-    expect(entries).toHaveLength(3);
+    expect(entries).toHaveLength(4);
     expect(entries[0]).toEqual({
       rank: 1,
       title: "First Story Title Here",
