@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth, signOut } from "@/auth";
 
 export default async function UserBar() {
@@ -9,6 +10,9 @@ export default async function UserBar() {
   return (
     <div className="flex justify-end items-center gap-3 px-4 py-2 text-sm text-gray-600">
       <span>Hi {localPart}</span>
+      <Link href="/usage" className="text-orange-600 hover:underline">
+        Usage
+      </Link>
       <form
         action={async () => {
           "use server";

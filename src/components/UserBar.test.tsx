@@ -24,6 +24,7 @@ describe("UserBar", () => {
     expect(screen.getByText("Hi test")).toBeInTheDocument();
     expect(screen.queryByText(/test@example\.com/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Log out/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Usage" })).toHaveAttribute("href", "/usage");
   });
 
   it("renders nothing when there is no session", async () => {
